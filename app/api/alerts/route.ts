@@ -31,7 +31,7 @@ async function sendSMS(to: string, message: string) {
       return { success: false, error: response.data.error };
     }
   } catch (error) {
-    console.error('SMS sending error:', error);
+    console.error('SMS sending error pOST:', error);
     if (axios.isAxiosError(error) && error.response) {
       return { success: false, error: error.response.data?.error || 'Failed to send SMS' };
     }
