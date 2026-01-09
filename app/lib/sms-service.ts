@@ -2,25 +2,30 @@
  * SMS Service Utility
  *
  * This utility provides a clean interface for sending SMS messages
- * throughout the application using Twilio.
+ * throughout the application using TextBee.
  */
 
 export interface SMSOptions {
   to: string;
   message: string;
   useTest?: boolean;
-  useMessagingService?: boolean;
+  useMessagingService?: boolean; // Kept for backwards compatibility, not used by TextBee
 }
 
 export interface SMSResponse {
   success: boolean;
   data?: {
-    sid: string;
+    id: string;
     status: string;
-    to: string;
-    from: string;
-    body: string;
-    dateCreated: string;
+    recipients: string[];
+    message: string;
+    createdAt: string;
+    // Legacy Twilio fields for backwards compatibility
+    sid?: string;
+    to?: string;
+    from?: string;
+    body?: string;
+    dateCreated?: string;
     messagingServiceSid?: string;
   };
   error?: string;
@@ -43,7 +48,8 @@ export interface BulkSMSResponse {
   results: Array<{
     to: string;
     success: boolean;
-    sid?: string;
+    id?: string; // TextBee uses 'id' instead of 'sid'
+    sid?: string; // Kept for backwards compatibility
     error?: string;
   }>;
 }
@@ -113,7 +119,8 @@ class SMSService {
         const resultItem = {
           to,
           success: result.success,
-          sid: result.data?.sid,
+          id: result.data?.id,
+          sid: result.data?.id, // Map id to sid for backwards compatibility
           error: result.error,
         };
 

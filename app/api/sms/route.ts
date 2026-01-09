@@ -1,21 +1,20 @@
+import axios from 'axios';
 import { NextRequest, NextResponse } from 'next/server';
-import twilio from 'twilio';
 
-// Twilio configuration - support both live and test environments
-const getConfig = (useTest: boolean = false) => {
-  const accountSid = useTest ? process.env.TEST_ACCOUNT_SID : process.env.ACCOUNT_SID;
-  const authToken = useTest ? process.env.TEST_AUTH_TOKEN : process.env.AUTH_TOKEN;
-  const twilioNumber = useTest ? process.env.TEST_TWILIO_NUMBER : process.env.TWILIO_NUMBER;
+// TextBee configuration
+const BASE_URL = 'https://api.textbee.dev/api/v1';
 
-  if (!accountSid || !authToken || !twilioNumber) {
-    throw new Error('Missing required Twilio configuration');
+const getConfig = () => {
+  const apiKey = process.env.TEXTBEE_API_KEY || 'a98c7417-f31f-4ff0-b3f5-ec853488db96';
+  const deviceId = process.env.TEXTBEE_DEVICE_ID || '691db1a082033f1609644e03';
+
+  if (!apiKey || !deviceId) {
+    throw new Error('Missing required TextBee configuration');
   }
 
   return {
-    accountSid,
-    authToken,
-    twilioNumber,
-    client: twilio(accountSid, authToken),
+    apiKey,
+    deviceId,
   };
 };
 
@@ -47,56 +46,75 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get Twilio configuration
+    // Get TextBee configuration
     const config = getConfig();
 
-    // Prepare message options
-    const messageOptions: {
-      body: string;
-      to: string;
-      from: string;
-      messagingServiceSid?: string;
-    } = {
-      body: message,
-      to: to.startsWith('+') ? to : `+${to}`,
-      from: '+639221200726',
-    };
+    // Ensure phone number has + prefix
+    const formattedPhone = to.startsWith('+') ? to : `+${to}`;
 
-    // Send SMS
-    const twilioMessage = await config.client.messages.create(messageOptions);
+    // Send SMS via TextBee
+    const response = await axios.post(
+      `${BASE_URL}/gateway/devices/${config.deviceId}/send-sms`,
+      {
+        recipients: [formattedPhone],
+        message: message,
+      },
+      {
+        headers: {
+          'x-api-key': config.apiKey,
+        },
+      },
+    );
 
     return NextResponse.json({
       success: true,
       data: {
-        sid: twilioMessage.sid,
-        status: twilioMessage.status,
-        to: twilioMessage.to,
-        from: twilioMessage.from,
-        body: twilioMessage.body,
-        dateCreated: twilioMessage.dateCreated,
-        messagingServiceSid: twilioMessage.messagingServiceSid,
+        id: response.data.data._id,
+        status: response.data.data.status,
+        recipients: response.data.data.recipients,
+        message: response.data.data.message,
+        createdAt: response.data.data.createdAt,
       },
       message: 'SMS sent successfully',
     });
   } catch (error) {
     console.error('SMS sending error:', error);
 
-    // Handle specific Twilio errors
+    // Handle axios/TextBee errors
+    if (axios.isAxiosError(error)) {
+      let errorMessage = 'Failed to send SMS';
+      let statusCode = 500;
+
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        statusCode = error.response.status;
+        errorMessage =
+          error.response.data?.message || error.response.data?.error || 'Failed to send SMS';
+      } else if (error.request) {
+        // The request was made but no response was received
+        errorMessage = 'No response from SMS service';
+        statusCode = 503;
+      } else {
+        // Something happened in setting up the request
+        errorMessage = 'Failed to send SMS request';
+      }
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: errorMessage,
+          details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        },
+        { status: statusCode },
+      );
+    }
+
     if (error instanceof Error) {
       let errorMessage = 'Failed to send SMS';
       let statusCode = 500;
 
-      // Check for common Twilio error codes
-      if (error.message.includes('21211')) {
-        errorMessage = 'Invalid phone number';
-        statusCode = 400;
-      } else if (error.message.includes('21408')) {
-        errorMessage = 'Permission denied or invalid credentials';
-        statusCode = 401;
-      } else if (error.message.includes('21610')) {
-        errorMessage = 'Message cannot be sent to this number';
-        statusCode = 400;
-      } else if (error.message.includes('Missing required Twilio configuration')) {
+      if (error.message.includes('Missing required TextBee configuration')) {
         errorMessage = 'SMS service not properly configured';
         statusCode = 500;
       }
@@ -124,15 +142,16 @@ export async function POST(request: NextRequest) {
 // GET endpoint to check SMS service status
 export async function GET() {
   try {
-    // Try to initialize Twilio client to check configuration
-    const config = getConfig(false);
+    // Check TextBee configuration
+    const config = getConfig();
 
     return NextResponse.json({
       success: true,
       data: {
         configured: true,
-        twilioNumber: config.twilioNumber,
+        deviceId: config.deviceId,
         environment: process.env.NODE_ENV,
+        provider: 'TextBee',
       },
       message: 'SMS service is configured and ready',
     });

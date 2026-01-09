@@ -2,7 +2,7 @@
 
 ## Overview
 
-This SMS API uses Twilio to send SMS messages for the AmayAlert emergency management system. It supports both live and test environments, single and bulk messaging, and specialized emergency alert formatting.
+This SMS API uses TextBee to send SMS messages for the AmayAlert emergency management system. It supports single and bulk messaging, and specialized emergency alert formatting.
 
 ## Setup
 
@@ -11,24 +11,19 @@ This SMS API uses Twilio to send SMS messages for the AmayAlert emergency manage
 Add the following variables to your `.env.local` file:
 
 ```env
-# Twilio (Live)
-ACCOUNT_SID="your_live_account_sid"
-AUTH_TOKEN="your_live_auth_token"
-TWILIO_NUMBER="+1234567890"
-MESSAGING_SERVICE="your_messaging_service_sid"
-
-# Twilio (Test)
-TEST_ACCOUNT_SID="your_test_account_sid"
-TEST_AUTH_TOKEN="your_test_auth_token"
-TEST_TWILIO_NUMBER="+1234567890"
+# TextBee Configuration
+TEXTBEE_API_KEY="your_textbee_api_key"
+TEXTBEE_DEVICE_ID="your_textbee_device_id"
 ```
+
+The system will fall back to hardcoded credentials if environment variables are not set (for development only).
 
 ### Installation
 
-The Twilio SDK is already installed. If you need to reinstall:
+The axios library is required and already installed. If you need to reinstall:
 
 ```bash
-npm install twilio
+npm install axios
 ```
 
 ## API Endpoints
@@ -44,9 +39,9 @@ Check SMS service status and configuration.
   "success": true,
   "data": {
     "configured": true,
-    "hasMessagingService": true,
-    "twilioNumber": "+1234567890",
-    "environment": "development"
+    "deviceId": "691db1a082033f1609644e03",
+    "environment": "development",
+    "provider": "TextBee"
   },
   "message": "SMS service is configured and ready"
 }
@@ -61,9 +56,7 @@ Send a single SMS message.
 ```json
 {
   "to": "+1234567890",
-  "message": "Your message here",
-  "useTest": true,
-  "useMessagingService": true
+  "message": "Your message here"
 }
 ```
 
@@ -73,12 +66,11 @@ Send a single SMS message.
 {
   "success": true,
   "data": {
-    "sid": "SM1234567890abcdef",
-    "status": "queued",
-    "to": "+1234567890",
-    "from": "+0987654321",
-    "body": "Your message here",
-    "dateCreated": "2025-01-01T00:00:00.000Z"
+    "id": "sms_1234567890",
+    "status": "PENDING",
+    "recipients": ["+1234567890"],
+    "message": "Your message here",
+    "createdAt": "2023-09-15T14:23:45Z"
   },
   "message": "SMS sent successfully"
 }
@@ -98,8 +90,6 @@ import smsService from '@/app/lib/sms-service';
 const result = await smsService.sendSMS({
   to: '+1234567890',
   message: 'Hello from AmayAlert!',
-  useTest: true, // Use test environment
-  useMessagingService: true, // Use messaging service if available
 });
 
 if (result.success) {
@@ -115,7 +105,6 @@ if (result.success) {
 const result = await smsService.sendBulkSMS({
   recipients: ['+1234567890', '+0987654321'],
   message: 'Bulk message to all recipients',
-  useTest: true,
   batchSize: 10, // Send 10 at a time
   delayBetweenBatches: 1000, // 1 second delay between batches
 });
@@ -131,7 +120,6 @@ const result = await smsService.sendEmergencyAlert({
   alertTitle: 'Flood Warning',
   alertMessage: 'Heavy rainfall expected. Move to higher ground immediately.',
   priority: 'critical', // 'low', 'medium', 'high', 'critical'
-  useTest: true,
 });
 ```
 
@@ -145,7 +133,6 @@ const result = await smsService.sendEvacuationNotification({
   status: 'open', // 'open', 'full', 'closed', 'maintenance'
   capacity: 100,
   currentOccupancy: 25,
-  useTest: true,
 });
 ```
 
@@ -206,15 +193,15 @@ A test page is available at `/sms-test` when running in development mode. This p
 - Check SMS service status
 - Send test messages
 - Send emergency alerts
-- Test different environments (live vs test)
+- Test the TextBee integration
 
 ## Error Handling
 
-The API handles common Twilio errors:
+The API handles common TextBee and HTTP errors:
 
-- **21211**: Invalid phone number
-- **21408**: Permission denied or invalid credentials
-- **21610**: Message cannot be sent to this number
+- **400**: Invalid phone number or missing required fields
+- **401**: Permission denied or invalid API credentials
+- **503**: No response from SMS service
 
 Errors are returned in a consistent format:
 
@@ -243,12 +230,13 @@ The bulk SMS service includes built-in rate limiting:
 
 ## Production Considerations
 
-1. **Environment**: Set `useTest: false` for production
-2. **Rate Limits**: Respect Twilio's rate limits
+1. **Environment Variables**: Set `TEXTBEE_API_KEY` and `TEXTBEE_DEVICE_ID` in production
+2. **Rate Limits**: Respect TextBee's API rate limits
 3. **Monitoring**: Log SMS results for monitoring
-4. **Costs**: Monitor SMS usage and costs
+4. **Costs**: Monitor SMS usage through TextBee dashboard
 5. **Compliance**: Ensure compliance with SMS regulations
 6. **User Consent**: Only send SMS to users who have opted in
+7. **Device**: Keep the TextBee device online and connected
 
 ## Support
 
@@ -256,5 +244,6 @@ For issues with the SMS service:
 
 1. Check the SMS service status endpoint
 2. Verify environment variables are set correctly
-3. Check Twilio account status and credits
+3. Check TextBee device status and connectivity
 4. Review error messages for specific issues
+5. Consult [TextBee documentation](https://textbee.dev)

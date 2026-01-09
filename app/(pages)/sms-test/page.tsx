@@ -123,10 +123,8 @@ export default function SMSTestPage() {
                 </div>
                 {serviceStatus.data && (
                   <div className="text-sm space-y-1">
-                    <p>Twilio Number: {serviceStatus.data.from || 'N/A'}</p>
-                    <p>
-                      Messaging Service: {serviceStatus.data.messagingServiceSid ? 'Yes' : 'No'}
-                    </p>
+                    <p>Device ID: {serviceStatus.data.id || 'N/A'}</p>
+                    <p>Provider: TextBee</p>
                     <p>Environment: {process.env.NODE_ENV || 'N/A'}</p>
                   </div>
                 )}
@@ -224,10 +222,10 @@ export default function SMSTestPage() {
                     <p className="font-medium text-green-800">SMS sent successfully!</p>
                     {'data' in result && result.data && (
                       <div className="text-sm text-green-700 space-y-1">
-                        <p>SID: {result.data.sid}</p>
+                        <p>ID: {result.data.id}</p>
                         <p>Status: {result.data.status}</p>
-                        <p>To: {result.data.to}</p>
-                        <p>From: {result.data.from}</p>
+                        <p>To: {result.data.recipients?.[0] || result.data.to}</p>
+                        <p>Provider: TextBee</p>
                       </div>
                     )}
                     {'results' in result && result.results && (

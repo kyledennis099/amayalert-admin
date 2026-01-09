@@ -1,55 +1,37 @@
 import { supabase } from '@/app/client/supabase';
 import { Database } from '@/database.types';
+import axios from 'axios';
 import { NextRequest, NextResponse } from 'next/server';
-import twilio from 'twilio';
 
 type EvacuationCenterInsert = Database['public']['Tables']['evacuation_centers']['Insert'];
 
-// Twilio configuration
-const getTwilioConfig = () => {
-  const accountSid = process.env.ACCOUNT_SID;
-  const authToken = process.env.AUTH_TOKEN;
-  const twilioNumber = process.env.TWILIO_NUMBER;
-  const messagingService = process.env.MESSAGING_SERVICE;
-
-  if (!accountSid || !authToken || !twilioNumber) {
-    throw new Error('Missing required Twilio configuration');
-  }
-
-  return {
-    client: twilio(accountSid, authToken),
-    twilioNumber,
-    messagingService,
-  };
-};
-
-// Function to send SMS
+// Function to send SMS using the centralized SMS API
 async function sendSMS(to: string, message: string) {
   try {
-    const config = getTwilioConfig();
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const response = await axios.post(
+      `${baseUrl}/api/sms`,
+      {
+        to,
+        message,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    );
 
-    const messageOptions: {
-      body: string;
-      to: string;
-      from?: string;
-      messagingServiceSid?: string;
-    } = {
-      body: message,
-      to: to.startsWith('+') ? to : `+${to}`,
-    };
-
-    // Use messaging service if available, otherwise use Twilio number
-    if (config.messagingService) {
-      messageOptions.messagingServiceSid = config.messagingService;
+    if (response.data.success) {
+      return { success: true, id: response.data.data.id };
     } else {
-      messageOptions.from = config.twilioNumber;
+      return { success: false, error: response.data.error };
     }
-
-    const twilioMessage = await config.client.messages.create(messageOptions);
-    console.log(`twilio message: ${JSON.stringify(twilioMessage)}`);
-    return { success: true, sid: twilioMessage.sid };
   } catch (error) {
     console.error('SMS sending error:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      return { success: false, error: error.response.data?.error || 'Failed to send SMS' };
+    }
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
@@ -179,7 +161,7 @@ export async function POST(request: NextRequest) {
             );
 
             if (smsResult.success) {
-              console.log(`SMS sent successfully to ${user.phone_number}, SID: ${smsResult.sid}`);
+              console.log(`SMS sent successfully to ${user.phone_number}, ID: ${smsResult.id}`);
             } else {
               console.error(`Failed to send SMS to ${user.phone_number}:`, smsResult.error);
             }
